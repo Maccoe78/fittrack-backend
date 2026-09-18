@@ -1,5 +1,7 @@
 package com.mackessels.fittrackbackend.controller;
 
+import com.mackessels.fittrackbackend.dto.LoginRequestDTO;
+import com.mackessels.fittrackbackend.dto.LoginResponseDTO;
 import com.mackessels.fittrackbackend.model.User;
 import com.mackessels.fittrackbackend.service.UserService;
 import org.springframework.http.HttpStatus;
@@ -37,5 +39,8 @@ public class UserController {
     public void deleteUser(@PathVariable Long id){
         userService.deleteUser(id);
     }
+
+    @PostMapping("/login")
+    public LoginResponseDTO login(@RequestBody LoginRequestDTO loginRequestDTO) {return userService.login(loginRequestDTO);}
 
 }
