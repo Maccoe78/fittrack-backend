@@ -94,4 +94,10 @@ public class DietService {
 
         return responseDTO;
     }
+
+    public DietPlanResponseDTO getDietPlanByUserId(Long userId){
+        DietPlan dietplan = dietRepository.findByUser_Id(userId)
+                .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "Diet not found for user id = " + userId));
+        return toResponseDTO(dietplan);
+    }
 }

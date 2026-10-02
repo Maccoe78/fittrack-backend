@@ -38,5 +38,10 @@ public class DietController {
         dietService.deleteDietPlan(id);
     }
 
+    @GetMapping("/user/{userId}")
+    public DietPlanResponseDTO getDietPlanByUserId(@PathVariable Long userId){
+        return dietService.getDietPlanByUserId(userId);
+    }
+
 }
 
