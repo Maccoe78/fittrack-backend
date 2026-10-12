@@ -54,7 +54,7 @@ jobs:
 
   deploy:
     needs: test
-    if: github.ref == 'refs/head/main'
+    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
     runs-on: self-hosted
 
     steps:
