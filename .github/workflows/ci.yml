@@ -53,7 +53,8 @@ jobs:
         run: ./gradlew test
 
   deploy:
-    needs: build-and-test
+    needs: test
+    if: github.ref == 'refs/head/main'
     runs-on: self-hosted
 
     steps:
