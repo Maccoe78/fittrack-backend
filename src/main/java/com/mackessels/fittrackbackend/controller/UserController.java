@@ -30,6 +30,7 @@ public class UserController {
         } catch (ResponseStatusException ex) {
             return ResponseEntity.status(ex.getStatusCode())
                     .body(Map.of("message", ex.getReason()));
+            // joehoe
         }
     }
 
