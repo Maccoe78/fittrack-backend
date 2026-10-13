@@ -1,0 +1,1 @@
+CREATE DATABASE fittrack_test OWNER test_user;
