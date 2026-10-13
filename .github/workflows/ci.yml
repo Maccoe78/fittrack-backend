@@ -55,8 +55,21 @@ jobs:
       - name: Make gradlew executable
         run: chmod +x ./gradlew
 
+      - name: Start Postgres with docker compose
+        run: docker compose up -d postgres
+
+      - name: Wait for Postgres
+        run: |
+            until docker exec fittrack-postgres pg_isready -U postgres -d fittrack_test; do
+              sleep 2
+            done
+
       - name: Run tests
         run: ./gradlew test
+
+      - name: Stop containers
+        if: always()
+        run: docker compose down
 
   deploy:
     needs: test
