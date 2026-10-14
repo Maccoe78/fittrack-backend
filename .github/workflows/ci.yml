@@ -58,7 +58,7 @@ jobs:
       - name: Start Postgres with docker compose
         env:
           DB_USERNAME: ${{ secrets.DB_USERNAME }}
-          DB_PASSWORD: ${{ secrets.DB_PASSWORD }}s
+          DB_PASSWORD: ${{ secrets.DB_PASSWORD }}
         run: docker compose up -d postgres
 
       - name: Wait for Postgres
