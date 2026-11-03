@@ -77,10 +77,7 @@ jobs:
   deploy:
     needs: test
     if: github.event_name == 'push' && github.ref == 'refs/heads/main'
-    runs-on: self-hosted
-    defaults:
-      run:
-        shell: cmd
+    runs-on: [self-hosted, linux, x64, educloud]
 
     steps:
       - name: Checkout code
@@ -94,3 +91,16 @@ jobs:
 
       - name: Build docker image
         run: docker build -t fittrack-backend .
+
+
+      - name: Ensure production database is running
+        env:
+          DB_USERNAME: ${{ secrets.DB_USERNAME }}
+          DB_PASSWORD: ${{ secrets.DB_PASSWORD }}
+        run: docker compose -p fittrack -f docker-compose.prod.yaml up -d postgres
+
+      - name: Deploy backend
+        env:
+          DB_USERNAME: ${{ secrets.DB_USERNAME }}
+          DB_PASSWORD: ${{ secrets.DB_PASSWORD }}
+        run: docker compose -p fittrack -f docker-compose.prod.yaml up -d --no-deps --force-recreate api
