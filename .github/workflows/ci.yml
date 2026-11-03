@@ -68,11 +68,47 @@ jobs:
             done
 
       - name: Run tests
-        run: ./gradlew test
+        run: ./gradlew test jacocoTestReport
+
+      - name: Upload coverage report
+        uses: actions/upload-artifact@v4
+        with:
+          name: jacoco-report
+          path: build/reports/jacoco/test/jacocoTestReport.xml
 
       - name: Stop containers
         if: always()
         run: docker compose down
+
+
+  sonar:
+    name: Static analysis
+    runs-on: [ self-hosted, x64, windows, sonar-pc ]
+    continue-on-error: true
+    needs: test
+    defaults:
+      run:
+        shell: cmd
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '25'
+          cache: gradle
+
+      - uses: actions/download-artifact@v4
+        with:
+          name: jacoco-report
+          path: build/reports/jacoco/test
+
+      - name: SonarQube analysis
+        env:
+          SONAR_TOKEN: ${{ secrets.SONAR_TOKEN }}
+        run: gradlew.bat sonar -Dsonar.host.url=http://localhost:9000 -Dsonar.token=%SONAR_TOKEN%
 
   deploy:
     needs: test
