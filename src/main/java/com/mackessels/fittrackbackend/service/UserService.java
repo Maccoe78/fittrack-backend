@@ -2,6 +2,8 @@ package com.mackessels.fittrackbackend.service;
 
 import com.mackessels.fittrackbackend.dto.LoginRequestDTO;
 import com.mackessels.fittrackbackend.dto.LoginResponseDTO;
+import com.mackessels.fittrackbackend.dto.RegisterRequestDTO;
+import com.mackessels.fittrackbackend.dto.RegisterResponseDTO;
 import com.mackessels.fittrackbackend.model.User;
 import com.mackessels.fittrackbackend.repository.UserRepository;
 import org.springframework.http.HttpStatus;
@@ -17,11 +19,21 @@ public class UserService {
 
     public UserService(UserRepository userRepository){this.userRepository = userRepository;}
 
-    public User saveUser(User user){
-        if(userRepository.findByName(user.getName()).isPresent()){
+    public RegisterResponseDTO saveUser(RegisterRequestDTO request){
+        if(userRepository.findByName(request.getName()).isPresent()){
             throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Username already exists");
         }
-        return userRepository.save(user);
+
+        User user = new User();
+        user.setName(request.getName());
+        user.setPassword(request.getPassword());
+
+        User savedUser = userRepository.save(user);
+
+        RegisterResponseDTO response = new RegisterResponseDTO();
+        response.setId(savedUser.getId());
+        response.setName(savedUser.getName());
+        return response;
     }
 
     public List <User> getAllUsers() {

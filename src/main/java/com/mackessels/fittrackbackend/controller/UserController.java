@@ -2,6 +2,8 @@ package com.mackessels.fittrackbackend.controller;
 
 import com.mackessels.fittrackbackend.dto.LoginRequestDTO;
 import com.mackessels.fittrackbackend.dto.LoginResponseDTO;
+import com.mackessels.fittrackbackend.dto.RegisterRequestDTO;
+import com.mackessels.fittrackbackend.dto.RegisterResponseDTO;
 import com.mackessels.fittrackbackend.model.User;
 import com.mackessels.fittrackbackend.service.UserService;
 import org.apache.coyote.Response;
@@ -23,14 +25,13 @@ public class UserController {
     }
 
     @PostMapping
-    public ResponseEntity<?> saveUser(@RequestBody User user){
+    public ResponseEntity<?> saveUser(@RequestBody RegisterRequestDTO requestDTO){
         try {
-            User savedUser = userService.saveUser(user);
-            return new ResponseEntity<>(savedUser, HttpStatus.CREATED);
+            RegisterResponseDTO response = userService.saveUser(requestDTO);
+            return new ResponseEntity<>(response, HttpStatus.CREATED);
         } catch (ResponseStatusException ex) {
             return ResponseEntity.status(ex.getStatusCode())
                     .body(Map.of("message", ex.getReason()));
-            // joehoe
         }
     }
 
