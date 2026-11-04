@@ -80,12 +80,12 @@ jobs:
         if: always()
         run: docker compose down
 
-
   sonar:
     name: Static analysis
     runs-on: [ self-hosted, x64, windows, sonar-pc ]
     continue-on-error: true
     needs: test
+    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
     defaults:
       run:
         shell: cmd
