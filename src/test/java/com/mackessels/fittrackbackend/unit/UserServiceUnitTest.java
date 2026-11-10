@@ -4,6 +4,7 @@ import com.mackessels.fittrackbackend.dto.LoginRequestDTO;
 import com.mackessels.fittrackbackend.dto.RegisterRequestDTO;
 import com.mackessels.fittrackbackend.model.User;
 import com.mackessels.fittrackbackend.repository.UserRepository;
+import com.mackessels.fittrackbackend.service.JwtService;
 import com.mackessels.fittrackbackend.service.UserService;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -14,6 +15,7 @@ import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 import org.springframework.http.HttpStatus;
 import org.springframework.web.server.ResponseStatusException;
+import org.springframework.security.crypto.password.PasswordEncoder;
 
 import java.util.List;
 import java.util.Optional;
@@ -27,18 +29,25 @@ class UserServiceUnitTest {
     @Mock
     private UserRepository userRepository;
 
+    @Mock
+    private PasswordEncoder passwordEncoder;
+
+    @Mock
+    private JwtService jwtService;
+
     @InjectMocks
     private UserService userService;
 
     @Test
-    void saveUser_savesUserAndReturnsResponseWithoutPassword() {
+    void saveUser_savesEncodedPasswordAndReturnsIdAndName() {
         RegisterRequestDTO request = new RegisterRequestDTO();
         request.setName("new-user");
         request.setPassword("secret");
 
         when(userRepository.findByName("new-user")).thenReturn(Optional.empty());
+        when(passwordEncoder.encode("secret")).thenReturn("encoded-password");
         when(userRepository.save(any(User.class)))
-                .thenReturn(new User(7L, "new-user", "secret"));
+                .thenReturn(new User(7L, "new-user", "encoded-password"));
 
         var response = userService.saveUser(request);
 
@@ -48,7 +57,9 @@ class UserServiceUnitTest {
         ArgumentCaptor<User> userCaptor = ArgumentCaptor.forClass(User.class);
         verify(userRepository).save(userCaptor.capture());
         assertEquals("new-user", userCaptor.getValue().getName());
-        assertEquals("secret", userCaptor.getValue().getPassword());
+        assertEquals("encoded-password", userCaptor.getValue().getPassword());
+
+        verify(passwordEncoder).encode("secret");
     }
 
     @Test
@@ -121,8 +132,12 @@ class UserServiceUnitTest {
 
     @Test
     void loginWithValidCredentialsReturnsIdAndName() {
-        User user = new User(1L, "test-user", "secret");
-        when(userRepository.findByName("test-user")).thenReturn(Optional.of(user));
+        User user = new User(1L, "test-user", "encoded-password");
+        when(userRepository.findByName("test-user"))
+                .thenReturn(Optional.of(user));
+        when(passwordEncoder.matches("secret", "encoded-password"))
+                .thenReturn(true);
+        when(jwtService.createToken(user)).thenReturn("test-token");
 
         LoginRequestDTO request = new LoginRequestDTO();
         request.setName("test-user");
@@ -132,11 +147,13 @@ class UserServiceUnitTest {
 
         assertEquals(1L, response.getId());
         assertEquals("test-user", response.getName());
+        assertEquals("test-token", response.getToken());
     }
 
     @Test
     void loginWithUnknownUserThrowsUnauthorized() {
-        when(userRepository.findByName("missing-user")).thenReturn(Optional.empty());
+        when(userRepository.findByName("missing-user"))
+                .thenReturn(Optional.empty());
 
         LoginRequestDTO request = new LoginRequestDTO();
         request.setName("missing-user");
@@ -148,12 +165,16 @@ class UserServiceUnitTest {
         );
 
         assertEquals(HttpStatus.UNAUTHORIZED, exception.getStatusCode());
+        verifyNoInteractions(jwtService);
     }
 
     @Test
     void loginWithWrongPasswordThrowsUnauthorized() {
+        User user = new User(1L, "test-user", "encoded-password");
         when(userRepository.findByName("test-user"))
-                .thenReturn(Optional.of(new User(1L, "test-user", "secret")));
+                .thenReturn(Optional.of(user));
+        when(passwordEncoder.matches("wrong-password", "encoded-password"))
+                .thenReturn(false);
 
         LoginRequestDTO request = new LoginRequestDTO();
         request.setName("test-user");
@@ -165,5 +186,6 @@ class UserServiceUnitTest {
         );
 
         assertEquals(HttpStatus.UNAUTHORIZED, exception.getStatusCode());
+        verifyNoInteractions(jwtService);
     }
 }

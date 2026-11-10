@@ -10,14 +10,21 @@ import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Service;
 import org.springframework.web.server.ResponseStatusException;
 import java.util.Optional;
+import org.springframework.security.crypto.password.PasswordEncoder;
 
 import java.util.List;
 
 @Service
 public class UserService {
     private final UserRepository userRepository;
+    private final PasswordEncoder passwordEncoder;
+    private final JwtService jwtService;
 
-    public UserService(UserRepository userRepository){this.userRepository = userRepository;}
+    public UserService(UserRepository userRepository, PasswordEncoder passwordEncoder, JwtService jwtService){
+        this.userRepository = userRepository;
+        this.passwordEncoder = passwordEncoder;
+        this.jwtService = jwtService;
+    }
 
     public RegisterResponseDTO saveUser(RegisterRequestDTO request){
         if(userRepository.findByName(request.getName()).isPresent()){
@@ -26,7 +33,7 @@ public class UserService {
 
         User user = new User();
         user.setName(request.getName());
-        user.setPassword(request.getPassword());
+        user.setPassword(passwordEncoder.encode(request.getPassword()));
 
         User savedUser = userRepository.save(user);
 
@@ -59,13 +66,14 @@ public class UserService {
 
         User user = foundUser.get();
 
-        if(!user.getPassword().equals(loginRequestDTO.getPassword())){
+        if (!passwordEncoder.matches(loginRequestDTO.getPassword(), user.getPassword())) {
             throw new ResponseStatusException(HttpStatus.UNAUTHORIZED, "invalid credentials");
         }
 
         LoginResponseDTO response = new LoginResponseDTO();
         response.setId(user.getId());
         response.setName(user.getName());
+        response.setToken(jwtService.createToken(user));
 
         return response;
     }

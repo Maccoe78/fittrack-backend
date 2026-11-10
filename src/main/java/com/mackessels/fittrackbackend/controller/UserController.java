@@ -4,6 +4,7 @@ import com.mackessels.fittrackbackend.dto.LoginRequestDTO;
 import com.mackessels.fittrackbackend.dto.LoginResponseDTO;
 import com.mackessels.fittrackbackend.dto.RegisterRequestDTO;
 import com.mackessels.fittrackbackend.dto.RegisterResponseDTO;
+import com.mackessels.fittrackbackend.dto.UserResponseDTO;
 import com.mackessels.fittrackbackend.model.User;
 import com.mackessels.fittrackbackend.service.UserService;
 import org.apache.coyote.Response;
@@ -36,13 +37,17 @@ public class UserController {
     }
 
     @GetMapping
-    public List<User> getAllUsers() {
-        return userService.getAllUsers();
+    public List<UserResponseDTO> getAllUsers() {
+        return userService.getAllUsers().stream().map(this::toUserResponse).toList();
     }
 
     @GetMapping("/{id}")
-    public User getUserById(@PathVariable Long id){
-        return userService.getUserById(id);
+    public UserResponseDTO getUserById(@PathVariable Long id){
+        return toUserResponse(userService.getUserById(id));
+    }
+
+    private UserResponseDTO toUserResponse(User user) {
+        return new UserResponseDTO(user.getId(), user.getName());
     }
 
     @DeleteMapping("/{id}")

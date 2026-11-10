@@ -40,6 +40,10 @@ jobs:
     name: Run tests
     runs-on: ubuntu-latest
     needs: build
+    env:
+      DB_USERNAME: ${{ secrets.DB_USERNAME }}
+      DB_PASSWORD: ${{ secrets.DB_PASSWORD }}
+      JWT_SECRET: ${{ secrets.JWT_SECRET }}
 
     steps:
       - name: Checkout code
@@ -56,9 +60,6 @@ jobs:
         run: chmod +x ./gradlew
 
       - name: Start Postgres with docker compose
-        env:
-          DB_USERNAME: ${{ secrets.DB_USERNAME }}
-          DB_PASSWORD: ${{ secrets.DB_PASSWORD }}
         run: docker compose up -d postgres
 
       - name: Wait for Postgres
@@ -114,6 +115,10 @@ jobs:
     needs: test
     if: github.event_name == 'push' && github.ref == 'refs/heads/main'
     runs-on: [self-hosted, linux, x64, educloud]
+    env:
+      DB_USERNAME: ${{ secrets.DB_USERNAME }}
+      DB_PASSWORD: ${{ secrets.DB_PASSWORD }}
+      JWT_SECRET: ${{ secrets.JWT_SECRET }}
 
     steps:
       - name: Checkout code
@@ -130,13 +135,7 @@ jobs:
 
 
       - name: Ensure production database is running
-        env:
-          DB_USERNAME: ${{ secrets.DB_USERNAME }}
-          DB_PASSWORD: ${{ secrets.DB_PASSWORD }}
         run: docker compose -p fittrack -f docker-compose.prod.yaml up -d postgres
 
       - name: Deploy backend
-        env:
-          DB_USERNAME: ${{ secrets.DB_USERNAME }}
-          DB_PASSWORD: ${{ secrets.DB_PASSWORD }}
         run: docker compose -p fittrack -f docker-compose.prod.yaml up -d --no-deps --force-recreate api

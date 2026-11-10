@@ -6,6 +6,7 @@ import com.mackessels.fittrackbackend.model.DietPlan;
 import com.mackessels.fittrackbackend.repository.DietRepository;
 import com.mackessels.fittrackbackend.repository.UserRepository;
 import com.mackessels.fittrackbackend.model.User;
+import jakarta.transaction.Transactional;
 import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Service;
 import org.springframework.web.server.ResponseStatusException;
@@ -25,11 +26,11 @@ public class DietService {
         this.userRepository = userRepository;
     }
 
-    public DietPlanResponseDTO saveDietPlan(DietPlanRequestDTO dietPlanRequestDTO) {
-        User user = userRepository.findById(dietPlanRequestDTO.getUserId())
+    public DietPlanResponseDTO saveDietPlan(DietPlanRequestDTO dietPlanRequestDTO, Long userId) {
+        User user = userRepository.findById(userId)
                 .orElseThrow(() -> new ResponseStatusException(
                         HttpStatus.NOT_FOUND,
-                        "User not found with id = " + dietPlanRequestDTO.getUserId()
+                        "User not found with id = " + userId
                 ));
 
         DietPlan dietPlan = new DietPlan();
@@ -49,31 +50,29 @@ public class DietService {
         return toResponseDTO(savedDietPlan);
     }
 
-    public List<DietPlanResponseDTO> getAllDietPlans() {
-        return dietRepository.findAll()
+    public List<DietPlanResponseDTO> getAllDietPlans(Long userId) {
+        return dietRepository.findAllByUser_Id(userId)
                 .stream()
                 .map(this::toResponseDTO)
                 .toList();
     }
 
-    public DietPlanResponseDTO getDietPlanById(Long id) {
-        DietPlan dietPlan = dietRepository.findById(id)
-                .orElseThrow(() -> new ResponseStatusException(
-                        HttpStatus.NOT_FOUND,
-                        "Diet not found with id = " + id
-                ));
-
-        return toResponseDTO(dietPlan);
+    public DietPlanResponseDTO getDietPlanById(Long id, Long userId) {
+        return toResponseDTO(findOwnedDietPlan(id, userId));
     }
 
-    public void deleteDietPlan(Long id) {
-        if (!dietRepository.existsById(id)) {
-            throw new ResponseStatusException(
-                    HttpStatus.NOT_FOUND,
-                    "Diet not found by id: " + id
-            );
-        }
-        dietRepository.deleteById(id);
+    @Transactional
+    public void deleteDietPlan(Long id, Long userId) {
+        DietPlan dietPlan = findOwnedDietPlan(id, userId);
+        dietRepository.delete(dietPlan);
+    }
+
+    private DietPlan findOwnedDietPlan(Long id, Long userId) {
+        return dietRepository.findByIdAndUser_Id(id, userId)
+                .orElseThrow(() -> new ResponseStatusException(
+                        HttpStatus.NOT_FOUND,
+                        "Diet not found"
+                ));
     }
 
     private DietPlanResponseDTO toResponseDTO(DietPlan dietPlan) {

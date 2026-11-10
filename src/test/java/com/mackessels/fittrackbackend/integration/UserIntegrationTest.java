@@ -10,6 +10,14 @@ import org.springframework.boot.webmvc.test.autoconfigure.AutoConfigureMockMvc;
 import org.springframework.http.MediaType;
 import org.springframework.test.context.ActiveProfiles;
 import org.springframework.test.web.servlet.MockMvc;
+import org.springframework.security.crypto.password.PasswordEncoder;
+
+import org.springframework.test.web.servlet.request.RequestPostProcessor;
+
+import static org.springframework.security.test.web.servlet.request.SecurityMockMvcRequestPostProcessors.jwt;
+
+import static org.junit.jupiter.api.Assertions.assertNotEquals;
+import static org.junit.jupiter.api.Assertions.assertTrue;
 
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.*;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
@@ -25,6 +33,13 @@ class UserIntegrationTest {
 
     @Autowired
     private UserRepository userRepository;
+
+    @Autowired
+    private PasswordEncoder passwordEncoder;
+
+    private RequestPostProcessor authenticatedAs(Long userId) {
+        return jwt().jwt(token -> token.subject(userId.toString()));
+    }
 
     @BeforeEach
     void cleanUp() {
@@ -43,35 +58,49 @@ class UserIntegrationTest {
                         """))
                 .andExpect(status().isCreated())
                 .andExpect(jsonPath("$.id").exists())
-                .andExpect(jsonPath("$.name").value("integration-user-1"));
+                .andExpect(jsonPath("$.name").value("integration-user-1"))
+                .andExpect(jsonPath("$.password").doesNotExist());
+
+        User savedUser = userRepository.findByName("integration-user-1")
+                .orElseThrow();
+
+        assertNotEquals("secret", savedUser.getPassword());
+        assertTrue(passwordEncoder.matches("secret", savedUser.getPassword()));
     }
 
     @Test
     void getUserById_returnsCreatedUser() throws Exception {
         User savedUser = userRepository.save(new User(null, "integration-user-2", "secret"));
 
-        mockMvc.perform(get("/users/{id}", savedUser.getId()))
+        mockMvc.perform(get("/users/{id}", savedUser.getId()).with(authenticatedAs(savedUser.getId())))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.id").value(savedUser.getId()))
-                .andExpect(jsonPath("$.name").value("integration-user-2"));
+                .andExpect(jsonPath("$.name").value("integration-user-2"))
+                .andExpect(jsonPath("$.password").doesNotExist());
     }
 
     @Test
     void deleteUser_removesUser() throws Exception {
         User savedUser = userRepository.save(new User(null, "integration-user-3", "secret"));
 
-        mockMvc.perform(delete("/users/{id}", savedUser.getId()))
+        mockMvc.perform(delete("/users/{id}", savedUser.getId()).with(authenticatedAs(savedUser.getId())))
                 .andExpect(status().isOk());
 
-        mockMvc.perform(get("/users/{id}", savedUser.getId()))
+        mockMvc.perform(get("/users/{id}", savedUser.getId()).with(authenticatedAs(savedUser.getId())))
                 .andExpect(status().isNotFound());
     }
 
 
     @Test
-    void getAllUsers_returnsOk() throws Exception {
-        mockMvc.perform(get("/users"))
-                .andExpect(status().isOk());
+    void getAllUsers_returnsUsersWithoutPasswords() throws Exception {
+        User savedUser = userRepository.save(
+                new User(null, "integration-user", passwordEncoder.encode("secret"))
+        );
+
+        mockMvc.perform(get("/users").with(authenticatedAs(savedUser.getId())))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$[0].name").value("integration-user"))
+                .andExpect(jsonPath("$[0].password").doesNotExist());
     }
 
     @Test
@@ -92,19 +121,19 @@ class UserIntegrationTest {
 
     @Test
     void getUserById_unknownId_returnsNotFound() throws Exception {
-        mockMvc.perform(get("/users/{id}", 999999))
+        mockMvc.perform(get("/users/{id}", 999999).with(authenticatedAs(999999L)))
                 .andExpect(status().isNotFound());
     }
 
     @Test
     void deleteUser_unknownId_returnsNotFound() throws Exception {
-        mockMvc.perform(delete("/users/{id}", 999999))
+        mockMvc.perform(delete("/users/{id}", 999999).with(authenticatedAs(999999L)))
                 .andExpect(status().isNotFound());
     }
 
     @Test
     void login_withValidCredentials_returnsIdAndName() throws Exception {
-        User savedUser = userRepository.save(new User(null, "login-user", "secret"));
+        User savedUser = userRepository.save(new User(null, "login-user", passwordEncoder.encode("secret")));
 
         mockMvc.perform(post("/users/login")
                         .contentType(MediaType.APPLICATION_JSON)
@@ -116,12 +145,14 @@ class UserIntegrationTest {
                         """))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.id").value(savedUser.getId()))
-                .andExpect(jsonPath("$.name").value("login-user"));
+                .andExpect(jsonPath("$.name").value("login-user"))
+                .andExpect(jsonPath("$.password").doesNotExist())
+                .andExpect(jsonPath("$.token").isNotEmpty());
     }
 
     @Test
     void login_withWrongPassword_returnsUnauthorized() throws Exception {
-        userRepository.save(new User(null, "login-user", "secret"));
+        userRepository.save(new User(null, "login-user", passwordEncoder.encode("secret")));
 
         mockMvc.perform(post("/users/login")
                         .contentType(MediaType.APPLICATION_JSON)
