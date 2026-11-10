@@ -26,6 +26,7 @@ services:
       SPRING_DATASOURCE_URL: jdbc:postgresql://postgres:5432/fittrack
       SPRING_DATASOURCE_USERNAME: ${DB_USERNAME}
       SPRING_DATASOURCE_PASSWORD: ${DB_PASSWORD}
+      JWT_SECRET: ${JWT_SECRET:?JWT_SECRET is required}
 
 volumes:
   postgres_data:
