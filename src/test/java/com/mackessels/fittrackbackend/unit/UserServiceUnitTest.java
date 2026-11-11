@@ -2,11 +2,11 @@ package com.mackessels.fittrackbackend.unit;
 
 import com.mackessels.fittrackbackend.dto.LoginRequestDTO;
 import com.mackessels.fittrackbackend.dto.RegisterRequestDTO;
+import com.mackessels.fittrackbackend.dto.UpdateUserRequestDTO;
 import com.mackessels.fittrackbackend.model.User;
 import com.mackessels.fittrackbackend.repository.UserRepository;
 import com.mackessels.fittrackbackend.service.JwtService;
 import com.mackessels.fittrackbackend.service.UserService;
-import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.ArgumentCaptor;
@@ -109,25 +109,43 @@ class UserServiceUnitTest {
     }
 
     @Test
-    void deleteUserDeletesUserWhenItExists() {
-        when(userRepository.existsById(1L)).thenReturn(true);
+    void deleteUser_deletesUserWhenCurrentPasswordIsCorrect() {
+        User user = new User(1L, "test-user", "encoded-password");
+        when(userRepository.findById(1L)).thenReturn(Optional.of(user));
+        when(passwordEncoder.matches("currentPassword", "encoded-password")).thenReturn(true);
 
-        userService.deleteUser(1L);
+        userService.deleteUser(1L, "currentPassword");
 
-        verify(userRepository).deleteById(1L);
+        verify(userRepository).delete(user);
     }
 
     @Test
-    void deleteUserThrowsNotFoundWhenMissing() {
-        when(userRepository.existsById(999L)).thenReturn(false);
+    void deleteUser_throwsNotFoundWhenUserIsMissing() {
+        when(userRepository.findById(999L)).thenReturn(Optional.empty());
 
         ResponseStatusException exception = assertThrows(
                 ResponseStatusException.class,
-                () -> userService.deleteUser(999L)
+                () -> userService.deleteUser(999L, "currentPassword")
         );
 
         assertEquals(HttpStatus.NOT_FOUND, exception.getStatusCode());
-        verify(userRepository, never()).deleteById(anyLong());
+        verify(userRepository, never()).delete(any(User.class));
+        verifyNoInteractions(passwordEncoder);
+    }
+
+    @Test
+    void deleteUser_doesNotDeleteWhenCurrentPasswordIsIncorrect() {
+        User user = new User(1L, "test-user", "encoded-password");
+        when(userRepository.findById(1L)).thenReturn(Optional.of(user));
+        when(passwordEncoder.matches("wrongPassword", "encoded-password")).thenReturn(false);
+
+        ResponseStatusException exception = assertThrows(
+                ResponseStatusException.class,
+                () -> userService.deleteUser(1L, "wrongPassword")
+        );
+
+        assertEquals(HttpStatus.FORBIDDEN, exception.getStatusCode());
+        verify(userRepository, never()).delete(any(User.class));
     }
 
     @Test
@@ -187,5 +205,60 @@ class UserServiceUnitTest {
 
         assertEquals(HttpStatus.UNAUTHORIZED, exception.getStatusCode());
         verifyNoInteractions(jwtService);
+    }
+
+    @Test
+    void updateUser_changesNameWhenCurrentPasswordIsCorrect() {
+        User user = new User(1L, "old-name", "encoded-password");
+        when(userRepository.findById(1L)).thenReturn(Optional.of(user));
+        when(passwordEncoder.matches("currentPassword", "encoded-password")).thenReturn(true);
+        when(userRepository.findByName("new-name")).thenReturn(Optional.empty());
+        when(userRepository.save(user)).thenReturn(user);
+
+        var result = userService.updateUser(
+                1L,
+                new UpdateUserRequestDTO("currentPassword", "new-name", null)
+        );
+
+        assertEquals("new-name", result.getName());
+        verify(userRepository).save(user);
+    }
+
+    @Test
+    void updateUser_changesPasswordWhenCurrentPasswordIsCorrect() {
+        User user = new User(1L, "test-user", "encoded-old-password");
+        when(userRepository.findById(1L)).thenReturn(Optional.of(user));
+        when(passwordEncoder.matches("currentPassword", "encoded-old-password"))
+                .thenReturn(true);
+        when(passwordEncoder.encode("newPassword")).thenReturn("encoded-new-password");
+        when(userRepository.save(user)).thenReturn(user);
+
+        userService.updateUser(
+                1L,
+                new UpdateUserRequestDTO("currentPassword", null, "newPassword")
+        );
+
+        assertEquals("encoded-new-password", user.getPassword());
+        verify(passwordEncoder).encode("newPassword");
+        verify(userRepository).save(user);
+    }
+
+    @Test
+    void updateUser_doesNotSaveWhenCurrentPasswordIsIncorrect() {
+        User user = new User(1L, "test-user", "encoded-password");
+        when(userRepository.findById(1L)).thenReturn(Optional.of(user));
+        when(passwordEncoder.matches("wrongPassword", "encoded-password"))
+                .thenReturn(false);
+
+        ResponseStatusException exception = assertThrows(
+                ResponseStatusException.class,
+                () -> userService.updateUser(
+                        1L,
+                        new UpdateUserRequestDTO("wrongPassword", "new-name", null)
+                )
+        );
+
+        assertEquals(HttpStatus.FORBIDDEN, exception.getStatusCode());
+        verify(userRepository, never()).save(any(User.class));
     }
 }

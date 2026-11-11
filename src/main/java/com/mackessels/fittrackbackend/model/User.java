@@ -1,7 +1,7 @@
 package com.mackessels.fittrackbackend.model;
 
 import jakarta.persistence.*;
-
+import java.util.ArrayList;
 import java.util.List;
 
 @Entity
@@ -12,6 +12,9 @@ public class User {
     private Long id;
     private String name;
     private String password;
+
+    @OneToMany(mappedBy = "user", cascade = CascadeType.REMOVE)
+    private List<DietPlan> dietPlans = new ArrayList<>();
 
     public User(){
 

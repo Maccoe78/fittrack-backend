@@ -3,6 +3,7 @@ package com.mackessels.fittrackbackend.controller;
 import com.mackessels.fittrackbackend.dto.DietPlanRequestDTO;
 import com.mackessels.fittrackbackend.dto.DietPlanResponseDTO;
 import com.mackessels.fittrackbackend.service.DietService;
+import com.mackessels.fittrackbackend.service.AuthenticatedUserService;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.core.annotation.AuthenticationPrincipal;
@@ -17,54 +18,40 @@ import java.util.List;
 @RequestMapping("/diets")
 public class DietController {
     private final DietService dietService;
+    private final AuthenticatedUserService authenticatedUserService;
 
-    public DietController(DietService dietService){this.dietService = dietService;}
+    public DietController(DietService dietService, AuthenticatedUserService authenticatedUserService){
+        this.dietService = dietService;
+        this.authenticatedUserService = authenticatedUserService;
+    }
 
     @PostMapping
     public ResponseEntity<DietPlanResponseDTO> saveDietPlan(@RequestBody DietPlanRequestDTO dietPlanRequestDTO, @AuthenticationPrincipal Jwt jwt){
-        Long userId = authenticatedUserId(jwt);
+        Long userId = authenticatedUserService.getUserId(jwt);
         DietPlanResponseDTO savedDietPlan = dietService.saveDietPlan(dietPlanRequestDTO, userId);
         return new ResponseEntity<>(savedDietPlan, HttpStatus.CREATED);
     }
 
     @GetMapping
     public List<DietPlanResponseDTO> getAllDietPlans(@AuthenticationPrincipal Jwt jwt){
-        return dietService.getAllDietPlans(authenticatedUserId(jwt));
+        return dietService.getAllDietPlans(authenticatedUserService.getUserId(jwt));
     }
 
     @GetMapping("/{id}")
     public DietPlanResponseDTO getDietPlanById(@PathVariable Long id, @AuthenticationPrincipal Jwt jwt){
-        return dietService.getDietPlanById(id, authenticatedUserId(jwt));
+        return dietService.getDietPlanById(id, authenticatedUserService.getUserId(jwt));
     }
 
     @DeleteMapping("/{id}")
     public void deleteDietPlan(@PathVariable Long id, @AuthenticationPrincipal Jwt jwt){
-        dietService.deleteDietPlan(id, authenticatedUserId(jwt));
+        dietService.deleteDietPlan(id, authenticatedUserService.getUserId(jwt));
     }
 
     @GetMapping("/user/{userId}")
     public DietPlanResponseDTO getDietPlanByUserId(@PathVariable Long userId, @AuthenticationPrincipal Jwt jwt){
-        Long authenticatedId = authenticatedUserId(jwt);
-
-        if (!authenticatedId.equals(userId)) {
-            throw new ResponseStatusException(HttpStatus.NOT_FOUND, "Diet not found");
-        }
-
+        Long authenticatedId = authenticatedUserService.requireOwnUser(userId, jwt);
         return dietService.getDietPlanByUserId(authenticatedId);
     }
 
-    private Long authenticatedUserId(Jwt jwt) {
-        try {
-            long userId = Long.parseLong(jwt.getSubject());
-            if (userId <= 0) {
-                throw new NumberFormatException();
-            }
-            return userId;
-        } catch (NumberFormatException ex) {
-            throw new ResponseStatusException(
-                    HttpStatus.UNAUTHORIZED, "Invalid token subject"
-            );
-        }
-    }
 }
 
