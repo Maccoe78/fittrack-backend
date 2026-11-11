@@ -4,6 +4,8 @@ import com.mackessels.fittrackbackend.dto.LoginRequestDTO;
 import com.mackessels.fittrackbackend.dto.LoginResponseDTO;
 import com.mackessels.fittrackbackend.dto.RegisterRequestDTO;
 import com.mackessels.fittrackbackend.dto.RegisterResponseDTO;
+import com.mackessels.fittrackbackend.dto.DeleteAccountRequestDTO;
+import com.mackessels.fittrackbackend.dto.UpdateUserRequestDTO;
 import com.mackessels.fittrackbackend.model.User;
 import com.mackessels.fittrackbackend.repository.UserRepository;
 import org.springframework.http.HttpStatus;
@@ -51,13 +53,6 @@ public class UserService {
         return userRepository.findById(id).orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "User not found with id= " + id));
     }
 
-    public void deleteUser (Long id) {
-        if (!userRepository.existsById(id)) {
-            throw new ResponseStatusException(HttpStatus.NOT_FOUND, "User not found by id: " + id);
-        }
-        userRepository.deleteById(id);
-    }
-
     public LoginResponseDTO login(LoginRequestDTO loginRequestDTO){
         Optional<User> foundUser = userRepository.findByName(loginRequestDTO.getName());
         if (foundUser.isEmpty()){
@@ -76,6 +71,50 @@ public class UserService {
         response.setToken(jwtService.createToken(user));
 
         return response;
+    }
+
+    public User updateUser(Long id, UpdateUserRequestDTO request) {
+        User user = getUserById(id);
+        verifyCurrentPassword(user, request.currentPassword());
+
+        if (request.name() == null && request.newPassword() == null) {
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "No changes provided");
+        }
+
+        if (request.name() != null) {
+            if (request.name().isBlank()) {
+                throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Name cannot be blank");
+            }
+
+            if (!request.name().equals(user.getName())
+                    && userRepository.findByName(request.name()).isPresent()) {
+                throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Username already exists");
+            }
+
+            user.setName(request.name());
+        }
+
+        if (request.newPassword() != null) {
+            if (request.newPassword().isBlank()) {
+                throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "New password cannot be blank");
+            }
+            user.setPassword(passwordEncoder.encode(request.newPassword()));
+        }
+
+        return userRepository.save(user);
+    }
+
+    public void deleteUser(Long id, String currentPassword) {
+        User user = getUserById(id);
+        verifyCurrentPassword(user, currentPassword);
+        userRepository.delete(user);
+    }
+
+    private void verifyCurrentPassword(User user, String currentPassword) {
+        if (currentPassword == null
+                || !passwordEncoder.matches(currentPassword, user.getPassword())) {
+            throw new ResponseStatusException(HttpStatus.FORBIDDEN, "Current password is incorrect");
+        }
     }
 
 }

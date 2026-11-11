@@ -1,17 +1,15 @@
 package com.mackessels.fittrackbackend.controller;
 
-import com.mackessels.fittrackbackend.dto.LoginRequestDTO;
-import com.mackessels.fittrackbackend.dto.LoginResponseDTO;
-import com.mackessels.fittrackbackend.dto.RegisterRequestDTO;
-import com.mackessels.fittrackbackend.dto.RegisterResponseDTO;
-import com.mackessels.fittrackbackend.dto.UserResponseDTO;
+import com.mackessels.fittrackbackend.dto.*;
 import com.mackessels.fittrackbackend.model.User;
 import com.mackessels.fittrackbackend.service.UserService;
-import org.apache.coyote.Response;
+import com.mackessels.fittrackbackend.service.AuthenticatedUserService;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
 import org.springframework.web.server.ResponseStatusException;
+import org.springframework.security.core.annotation.AuthenticationPrincipal;
+import org.springframework.security.oauth2.jwt.Jwt;
 
 import java.util.List;
 import java.util.Map;
@@ -20,9 +18,11 @@ import java.util.Map;
 @RequestMapping("/users")
 public class UserController {
     private final UserService userService;
+    private final AuthenticatedUserService authenticatedUserService;
 
-    public UserController(UserService userService){
+    public UserController(UserService userService, AuthenticatedUserService authenticatedUserService){
         this.userService = userService;
+        this.authenticatedUserService = authenticatedUserService;
     }
 
     @PostMapping
@@ -42,7 +42,8 @@ public class UserController {
     }
 
     @GetMapping("/{id}")
-    public UserResponseDTO getUserById(@PathVariable Long id){
+    public UserResponseDTO getUserById(@PathVariable Long id, @AuthenticationPrincipal Jwt jwt){
+        authenticatedUserService.requireOwnUser(id, jwt);
         return toUserResponse(userService.getUserById(id));
     }
 
@@ -50,10 +51,6 @@ public class UserController {
         return new UserResponseDTO(user.getId(), user.getName());
     }
 
-    @DeleteMapping("/{id}")
-    public void deleteUser(@PathVariable Long id){
-        userService.deleteUser(id);
-    }
 
     @PostMapping("/login")
     public ResponseEntity<?> login(@RequestBody LoginRequestDTO loginRequestDTO) {
@@ -66,4 +63,22 @@ public class UserController {
 
     }
 
+    @GetMapping("/me")
+    public UserResponseDTO getMyProfile(@AuthenticationPrincipal Jwt jwt) {
+        Long userId = authenticatedUserService.getUserId(jwt);
+        return toUserResponse(userService.getUserById(userId));
+    }
+
+    @PutMapping("/me")
+    public UserResponseDTO updateMyProfile(@RequestBody UpdateUserRequestDTO request, @AuthenticationPrincipal Jwt jwt) {
+        Long userId = authenticatedUserService.getUserId(jwt);
+        return toUserResponse(userService.updateUser(userId, request));
+    }
+
+    @DeleteMapping("/me")
+    public ResponseEntity<Void> deleteMyAccount(@RequestBody DeleteAccountRequestDTO request, @AuthenticationPrincipal Jwt jwt) {
+        Long userId = authenticatedUserService.getUserId(jwt);
+        userService.deleteUser(userId, request.currentPassword());
+        return ResponseEntity.noContent().build();
+    }
 }
