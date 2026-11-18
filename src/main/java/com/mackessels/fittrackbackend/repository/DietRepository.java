@@ -11,4 +11,5 @@ public interface DietRepository extends JpaRepository<DietPlan, Long> {
     List<DietPlan> findAllByUser_Id(Long userId);
 
     Optional<DietPlan> findByIdAndUser_Id(Long id, Long userId);
+    boolean existsByUser_Id(Long userId);
 }

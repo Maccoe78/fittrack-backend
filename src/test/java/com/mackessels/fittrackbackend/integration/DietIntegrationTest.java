@@ -12,6 +12,7 @@ import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.boot.webmvc.test.autoconfigure.AutoConfigureMockMvc;
+import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.http.MediaType;
 import org.springframework.test.context.ActiveProfiles;
 import org.springframework.test.web.servlet.MockMvc;
@@ -121,5 +122,22 @@ class DietIntegrationTest {
     void getDietPlans_withoutAuthenticationReturnsUnauthorized() throws Exception {
         mockMvc.perform(get("/diets"))
                 .andExpect(status().isUnauthorized());
+    }
+
+    @Test
+    void database_rejectsSecondDietPlanForSameUser() {
+        DietPlan secondPlan = new DietPlan(
+                null, 25, 80, 180, 75,
+                Gender.MALE, ActivityLevel.MODERATE, Pace.NORMAL,
+                2200, user
+        );
+
+        assertThrows(
+                DataIntegrityViolationException.class,
+                () -> dietRepository.saveAndFlush(secondPlan)
+        );
+
+        assertEquals(1, dietRepository.findAllByUser_Id(user.getId()).size());
+        assertTrue(dietRepository.findById(ownPlan.getId()).isPresent());
     }
 }

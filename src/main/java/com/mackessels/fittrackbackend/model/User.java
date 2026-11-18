@@ -16,6 +16,9 @@ public class User {
     @OneToMany(mappedBy = "user", cascade = CascadeType.REMOVE)
     private List<DietPlan> dietPlans = new ArrayList<>();
 
+    @OneToMany(mappedBy = "user", cascade = CascadeType.REMOVE)
+    private List<FoodEntry> foodEntries = new ArrayList<>();
+
     public User(){
 
     }
