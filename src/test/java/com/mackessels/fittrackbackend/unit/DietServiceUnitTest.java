@@ -15,6 +15,7 @@ import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.InjectMocks;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
+import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.http.HttpStatus;
 import org.springframework.web.server.ResponseStatusException;
 
@@ -59,7 +60,7 @@ class DietServiceUnitTest {
             return null;
         }).when(calorieService).calculateCalories(any(DietPlan.class));
 
-        when(dietRepository.save(any(DietPlan.class)))
+        when(dietRepository.saveAndFlush(any(DietPlan.class)))
                 .thenAnswer(invocation -> {
                     DietPlan plan = invocation.getArgument(0);
                     plan.setId(10L);
@@ -73,7 +74,7 @@ class DietServiceUnitTest {
         assertEquals(25, result.getAge());
         assertEquals(2200, result.getCalorieTarget());
         verify(calorieService).calculateCalories(any(DietPlan.class));
-        verify(dietRepository).save(any(DietPlan.class));
+        verify(dietRepository).saveAndFlush(any(DietPlan.class));
     }
 
     @Test
@@ -161,5 +162,67 @@ class DietServiceUnitTest {
 
         assertEquals(HttpStatus.NOT_FOUND, exception.getStatusCode());
         verify(dietRepository, never()).delete(any(DietPlan.class));
+    }
+
+    @Test
+    void saveDietPlan_whenUserAlreadyHasPlanReturnsConflict() {
+        User user = new User(1L, "test-user", "encoded-password");
+
+        when(userRepository.findById(1L)).thenReturn(Optional.of(user));
+        when(dietRepository.existsByUser_Id(1L)).thenReturn(true);
+
+        ResponseStatusException exception = assertThrows(
+                ResponseStatusException.class,
+                () -> dietService.saveDietPlan(new DietPlanRequestDTO(), 1L)
+        );
+
+        assertEquals(HttpStatus.CONFLICT, exception.getStatusCode());
+        verify(dietRepository, never()).save(any(DietPlan.class));
+        verifyNoInteractions(calorieService);
+    }
+
+    @Test
+    void saveDietPlan_whenUniqueConstraintIsViolatedReturnsConflict() {
+        User user = new User(1L, "test-user", "encoded-password");
+        when(userRepository.findById(1L)).thenReturn(Optional.of(user));
+        when(dietRepository.existsByUser_Id(1L)).thenReturn(false);
+
+        var constraintException = mock(
+                org.hibernate.exception.ConstraintViolationException.class
+        );
+        when(constraintException.getConstraintName())
+                .thenReturn("uk_diets_user_id");
+
+        when(dietRepository.saveAndFlush(any(DietPlan.class)))
+                .thenThrow(new DataIntegrityViolationException(
+                        "Duplicate diet plan", constraintException
+                ));
+
+        ResponseStatusException exception = assertThrows(
+                ResponseStatusException.class,
+                () -> dietService.saveDietPlan(new DietPlanRequestDTO(), 1L)
+        );
+
+        assertEquals(HttpStatus.CONFLICT, exception.getStatusCode());
+    }
+
+    @Test
+    void saveDietPlan_whenAnotherDatabaseErrorOccursRethrowsIt() {
+        User user = new User(1L, "test-user", "encoded-password");
+        when(userRepository.findById(1L)).thenReturn(Optional.of(user));
+        when(dietRepository.existsByUser_Id(1L)).thenReturn(false);
+
+        DataIntegrityViolationException databaseError =
+                new DataIntegrityViolationException("Other database error");
+
+        when(dietRepository.saveAndFlush(any(DietPlan.class)))
+                .thenThrow(databaseError);
+
+        DataIntegrityViolationException exception = assertThrows(
+                DataIntegrityViolationException.class,
+                () -> dietService.saveDietPlan(new DietPlanRequestDTO(), 1L)
+        );
+
+        assertSame(databaseError, exception);
     }
 }

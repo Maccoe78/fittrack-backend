@@ -3,7 +3,13 @@ package com.mackessels.fittrackbackend.model;
 import jakarta.persistence.*;
 
 @Entity
-@Table(name = "diets")
+@Table(
+        name = "diets",
+        uniqueConstraints = @UniqueConstraint(
+                name = "uk_diets_user_id",
+                columnNames = "user_id"
+        )
+)
 public class DietPlan {
     @Id
     @GeneratedValue(strategy = GenerationType.IDENTITY)

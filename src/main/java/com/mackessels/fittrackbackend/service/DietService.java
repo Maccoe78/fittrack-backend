@@ -10,6 +10,7 @@ import jakarta.transaction.Transactional;
 import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Service;
 import org.springframework.web.server.ResponseStatusException;
+import org.springframework.dao.DataIntegrityViolationException;
 
 import java.util.List;
 
@@ -33,6 +34,13 @@ public class DietService {
                         "User not found with id = " + userId
                 ));
 
+        if (dietRepository.existsByUser_Id(userId)) {
+            throw new ResponseStatusException(
+                    HttpStatus.CONFLICT,
+                    "User already has a diet plan"
+            );
+        }
+
         DietPlan dietPlan = new DietPlan();
         dietPlan.setAge(dietPlanRequestDTO.getAge());
         dietPlan.setWeight(dietPlanRequestDTO.getWeight());
@@ -45,9 +53,27 @@ public class DietService {
 
         calorieService.calculateCalories(dietPlan);
 
-        DietPlan savedDietPlan = dietRepository.save(dietPlan);
+        try {
+            DietPlan savedDietPlan = dietRepository.saveAndFlush(dietPlan);
+            return toResponseDTO(savedDietPlan);
+        } catch (DataIntegrityViolationException ex) {
+            Throwable cause = ex;
 
-        return toResponseDTO(savedDietPlan);
+            while (cause != null) {
+                if (cause instanceof org.hibernate.exception.ConstraintViolationException violation
+                        && "uk_diets_user_id".equals(violation.getConstraintName())) {
+                    throw new ResponseStatusException(
+                            HttpStatus.CONFLICT,
+                            "User already has a diet plan",
+                            ex
+                    );
+                }
+                cause = cause.getCause();
+            }
+
+            throw ex;
+        }
+
     }
 
     public List<DietPlanResponseDTO> getAllDietPlans(Long userId) {
